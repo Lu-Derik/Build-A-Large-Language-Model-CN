@@ -1,3 +1,6 @@
+import time
+import math
+
 import torch
 import tiktoken
 
@@ -8,7 +11,7 @@ from chapter02_dataloader import create_dataloader_v1
 
 GPT_CONFIG_124M = {
     "vocab_size": 50257,
-    "context_length": 256,        # 将上下文长度从1024个token缩短到256个token
+    "context_length": 128,        # 将上下文长度从1024个token缩短到256个token
     "emb_dim": 768,
     "n_heads": 12,
     "n_layers": 12,
@@ -58,8 +61,11 @@ def train_model_simple(model, train_loader, val_loader, optimizer, device, num_e
                        eval_freq, eval_iter, start_context, tokenizer):
     train_losses, val_losses, track_tokens_seen = [], [], []                        #A
     tokens_seen, global_step = 0, -1
+    best_val_loss = float("inf")
+    train_start_time = time.time()
 
     for epoch in range(num_epochs):                                                 #B
+        epoch_start_time = time.time()
         model.train()
         for input_batch, target_batch in train_loader:
             optimizer.zero_grad()                                                   #C
@@ -75,12 +81,24 @@ def train_model_simple(model, train_loader, val_loader, optimizer, device, num_e
                 train_losses.append(train_loss)
                 val_losses.append(val_loss)
                 track_tokens_seen.append(tokens_seen)
+                best_val_loss = min(best_val_loss, val_loss)
                 print(f"Ep {epoch+1} (Step {global_step:06d}): "
-                      f"Train loss {train_loss:.3f}, Val loss {val_loss:.3f}")
+                      f"Train loss {train_loss:.3f} (ppl {math.exp(train_loss):.1f}), "
+                      f"Val loss {val_loss:.3f} (ppl {math.exp(val_loss):.1f})")
+
+        epoch_elapsed = time.time() - epoch_start_time
+        print(f"-- Epoch {epoch+1}/{num_epochs} 用时 {epoch_elapsed:.1f}s, "
+              f"累计已处理 tokens: {tokens_seen:,}")
 
         generate_and_print_sample(                                                  #G
             model, tokenizer, device, start_context
         )
+
+    total_elapsed = time.time() - train_start_time
+    print(f"\n训练总用时: {total_elapsed/60:.2f} 分钟")
+    print(f"平均吞吐量: {tokens_seen/total_elapsed:,.0f} tokens/秒")
+    print(f"训练过程中最佳 Validation loss: {best_val_loss:.3f} (ppl {math.exp(best_val_loss):.1f})")
+
     return train_losses, val_losses, track_tokens_seen
 #A 初始化用于记录损失和已处理 token 数量的列表
 #B 开始主训练循环
@@ -128,7 +146,7 @@ def plot_losses(epochs_seen, tokens_seen, train_losses, val_losses):
     ax1.set_ylabel("Loss")
     ax1.legend(loc="upper right")
     ax2 = ax1.twiny()  #A
-    ax2.plot(tokens_seen, train_losses, alpha=0)  #B
+    ax2.plot(tokens_seen, train_losses, alpha=0.5)  #B
     ax2.set_xlabel("Tokens seen")
     fig.tight_layout()
     out_path = "loss_plot.png"
@@ -171,17 +189,22 @@ if __name__ == "__main__":
     print(f"val_loader 批次数: {len(val_loader)}")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  #A
+    print(f"\n使用设备: {device}")
 
     torch.manual_seed(123)
     model = GPTModel(GPT_CONFIG_124M)
     model.to(device)
 
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"模型总参数量: {total_params:,}")
+    print(f"原始文本/训练集/验证集文本字符数: {len(raw_text):,} / {len(train_data):,} / {len(val_data):,}")
+
     with torch.no_grad():                                                 #B
         train_loss = calc_loss_loader(train_loader, model, device)        #C
         val_loss = calc_loss_loader(val_loader, model, device)
     print("\n未训练前:")
-    print("Training loss:", train_loss)
-    print("Validation loss:", val_loss)
+    print(f"Training loss: {train_loss:.3f} (perplexity {math.exp(train_loss):.1f})")
+    print(f"Validation loss: {val_loss:.3f} (perplexity {math.exp(val_loss):.1f})")
     #A 如果你的设备配备了支持 CUDA 的 GPU，LLM 将自动在 GPU 上进行训练，无需更改代码
     #B 因为当前不在训练，为提高效率，关闭梯度跟踪
     #C 通过 device 设置确保数据与 LLM 模型加载到同一设备上
@@ -195,6 +218,25 @@ if __name__ == "__main__":
         start_context="Every effort moves you", tokenizer=tokenizer
     )
     #A .parameters() 方法返回模型的所有可训练权重参数
+
+    with torch.no_grad():
+        final_train_loss = calc_loss_loader(train_loader, model, device)
+        final_val_loss = calc_loss_loader(val_loader, model, device)
+
+    print("\n" + "=" * 60)
+    print("训练结束总结")
+    print("=" * 60)
+    print(f"训练轮数 (epochs): {num_epochs}")
+    print(f"总处理 tokens 数: {tokens_seen[-1]:,}")
+    print(f"最终 Training loss: {final_train_loss:.3f} (perplexity {math.exp(final_train_loss):.1f})")
+    print(f"最终 Validation loss: {final_val_loss:.3f} (perplexity {math.exp(final_val_loss):.1f})")
+
+    checkpoint_path = "model_checkpoint.pth"
+    torch.save({
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+    }, checkpoint_path)
+    print(f"模型与优化器状态已保存到: {checkpoint_path}")
 
     epochs_tensor = torch.linspace(0, num_epochs, len(train_losses))
     plot_losses(epochs_tensor, tokens_seen, train_losses, val_losses)

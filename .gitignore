@@ -1,5 +1,14 @@
 .DS_Store
 
+# Downloaded model weights and training outputs
+gpt2/
+model_checkpoint*.pth
+loss_plot*.png
+
+# Downloaded SMS spam dataset files (prepared CSV splits are tracked)
+sms_spam_collection/
+sms_spam_collection.zip
+
 .cursor
 
 __pycache__/
