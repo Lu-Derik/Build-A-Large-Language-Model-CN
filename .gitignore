@@ -3,7 +3,9 @@
 # Downloaded model weights and training outputs
 gpt2/
 model_checkpoint*.pth
+spam_classifier_finetuned.pth
 loss_plot*.png
+classification-*-plot.pdf
 
 # Downloaded SMS spam dataset files (prepared CSV splits are tracked)
 sms_spam_collection/
