@@ -7,9 +7,9 @@ import tiktoken
 
 from gpt_download import download_and_load_gpt2
 from gpt_model import GPTModel
+from chapter_6_3_sms_spam_dataloader import create_spam_dataloaders
 from run_pretrained_gpt2 import load_weights_into_gpt
-from sms_spam_dataloader import create_spam_dataloaders
-from sms_spam_classifier import classify_review
+from chapter_6_5_sms_spam_classifier import classify_review
 from text_generation import generate_text_simple
 from text_to_token_ids import text_to_token_ids, token_ids_to_text
 

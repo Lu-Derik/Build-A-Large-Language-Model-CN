@@ -3,7 +3,7 @@ import argparse
 import torch
 import tiktoken
 
-from sms_spam_classifier import classify_review, load_spam_classifier
+from chapter_6_5_sms_spam_classifier import classify_review, load_spam_classifier
 
 
 CHECKPOINT_PATH = "spam_classifier_finetuned.pth"

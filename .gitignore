@@ -10,6 +10,7 @@ classification-*-plot.pdf
 # Downloaded SMS spam dataset files (prepared CSV splits are tracked)
 sms_spam_collection/
 sms_spam_collection.zip
+instruction-data.json
 
 .cursor
 
